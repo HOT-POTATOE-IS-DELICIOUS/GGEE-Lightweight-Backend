@@ -20,7 +20,7 @@ import {
  *                  Redis native key-expiry replaces both the `< cutoff` check and the original
  *                  cleanup punctuator. A comment is NEW iff its key did not already exist.
  *
- * Also drives indexing-job completion: a result with status `all_done` marks the outbox COMPLETED
+ * Also drives indexing-job completion: a result with status `all_done` marks the job COMPLETED
  * (was the `crawl.community.result` -> completion-events stream).
  */
 @Injectable()

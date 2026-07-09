@@ -112,7 +112,7 @@ src/
 ├── database/      data-source + migrations
 └── modules/
     ├── member/    auth(register/login/refresh/logout), JWT, 세션
-    ├── protect/   protect 색인 + outbox
+    ├── protect/   protect 색인 + indexing job
     ├── crawler/   크롤 결과 수신 + Redis dedup
     ├── audit/     POST /audit
     ├── issue/     GET /issues

@@ -44,7 +44,7 @@ src/
 ├── database/               # data-source.ts, migrations/
 └── modules/
     ├── member/             # auth: register/login/refresh/logout, JWT, 세션(CAS)
-    ├── protect/            # protect 등록/조회, outbox(완료추적), 크롤러 동기 HTTP, 30분 리프레시
+    ├── protect/            # protect 등록/조회, indexing job(완료추적), 크롤러 동기 HTTP, 30분 리프레시
     ├── crawler/            # 크롤 결과 수신 HTTP, Redis dedup, 다운스트림 포워딩
     ├── audit/              # POST /audit
     ├── issue/              # GET /issues
@@ -58,12 +58,14 @@ src/
 
 ### 4.1 protect 색인 파이프라인
 - **원본**: register → outbox(PENDING) → 스케줄러 claim → Kafka `crawl.request` 발행 → 크롤러 → `crawl.community.result(status=all_done)` → outbox COMPLETED.
-- **이식**: register 트랜잭션(user+protect+outbox+session) 커밋 후 → 크롤러로 **동기 HTTP POST** `${CRAWLER_BASE_URL}/crawl/request` `{ job_id, keyword, protect_target_info }` → 성공 시 outbox PUBLISHED. 스케줄러/폴링 디스패치 제거.
-- **완료 콜백**: 크롤러가 `POST /internal/crawl/result`(아래 4.2)로 결과 전송, `status=="all_done"`이면 `job_id`로 outbox COMPLETED 마킹.
-- **30분 리프레시**: `@Interval(30min)` — `SELECT DISTINCT target,info WHERE deleted=false` → 각 건 outbox(PENDING) 생성 + 크롤러 재요청(best-effort). 단일 레플리카 가정.
+- **이식**: register 트랜잭션(user+protect+indexing job+session) 커밋 후 → 크롤러로 **동기 HTTP POST** `${CRAWLER_BASE_URL}/crawl/request` `{ job_id, keyword, protect_target_info }`. 스케줄러/폴링 디스패치 제거.
+- **outbox 아님**: 디스패처가 사라진 이상 outbox 패턴(claim + 재시도)의 이점은 없다. 남은 것은 `indexing_jobs` 잡 테이블뿐이며 상태는 `PENDING | COMPLETED | FAILED` 3개다. `claimed_at`/`published_at`/`IN_PROGRESS`/`PUBLISHED`와 디스패처용 `(status, createdAt)` 인덱스는 제거됨.
+- **디스패치 실패**: register는 이미 커밋됐으므로 예외를 호출자에게 던질 수 없다. 대신 잡을 `FAILED`로 기록해 4.3의 대기자가 10분 침묵 대신 즉시 실패를 통보하게 한다. 재시도는 없다(사용자 재시도).
+- **완료 콜백**: 크롤러가 `POST /internal/crawl/result`(아래 4.2)로 결과 전송, `status=="all_done"`이면 `job_id`로 COMPLETED 마킹. 종료 상태는 sticky — `PENDING`인 잡만 전이시켜 콜백과 디스패치 타임아웃의 경합에서 승자가 뒤집히지 않는다.
+- **30분 리프레시**: `@Interval(30min)` — `SELECT DISTINCT target,info WHERE deleted=false` → 각 건 새 잡(PENDING) 생성 + 크롤러 재요청(best-effort). 단일 레플리카 가정. 새 `job_id`를 발급하므로 기존 대기자를 구제하지는 않는다.
 
 ### 4.2 크롤러 dedup (Kafka Streams → Redis)
-- **수신**: `POST /internal/crawl/result` — 원본 `crawl.community.result` 토픽 대체. `status=="completed"`인 경우만 dedup 처리(+ `all_done`은 outbox 완료 마킹).
+- **수신**: `POST /internal/crawl/result` — 원본 `crawl.community.result` 토픽 대체. `status=="completed"`인 경우만 dedup 처리(+ `all_done`은 잡 완료 마킹).
 - **dedup 키**: `dedup:{commentId}|{postUrl}`. sliding TTL = `GGEE_CRAWLER_DEDUP_TTL`(초).
   - `existed = redis.exists(key)`; `redis.set(key, eventTs, 'EX', ttl)`(항상 갱신); 코멘트는 `!existed`일 때 NEW.
   - Redis 네이티브 만료가 원본의 `< cutoff` 판정 + purge 펑추에이터를 대체.
@@ -71,7 +73,8 @@ src/
 
 ### 4.3 indexing 완료 대기 (reaction)
 - `GET /indexing/jobs/:job_id` (SSE 유지) — Kafka 인메모리 푸시 제거, **순수 DB 폴링**.
-- heartbeat(`event:heartbeat data:ping`) 30s 간격 + 2s 마다 `outbox WHERE id=? AND status='COMPLETED' AND deleted=false` 확인 → 완료 시 `event:completed data:done` 후 종료. 10분 상한.
+- heartbeat(`event:heartbeat data:ping`) 30s 간격 + 2s 마다 `indexing_jobs WHERE id=? AND deleted=false`의 상태 확인 → `COMPLETED`면 `event:completed data:done`, `FAILED`면 `event:failed data:dispatch_failed` 후 종료. 10분 상한(상한 도달 시 종료 프레임 없이 close).
+- `PENDING`과 미존재 id는 계속 대기한다. register 응답이 dispatch보다 먼저 도착할 수 있어, 미존재를 즉시 실패로 단정하면 안 된다.
 
 ## 5. 인증/세션 상세
 
@@ -97,7 +100,7 @@ src/
 
 ## 7. 데이터 모델 (TypeORM 엔티티)
 
-`users`, `user_sessions`, `protects`, `protect_target_indexing_outbox`, `audits`, `strategy_chat_rooms`, `strategy_chat_messages`.
+`users`, `user_sessions`, `protects`, `indexing_jobs`, `audits`, `strategy_chat_rooms`, `strategy_chat_messages`.
 스키마는 원본 `schema.sql`과 동등하게 재정의(부분 유니크 인덱스 포함). PK는 `bigint`(string), `createdAt` 따옴표 컬럼, soft-delete 컬럼.
 
 ## 8. 설정(env)

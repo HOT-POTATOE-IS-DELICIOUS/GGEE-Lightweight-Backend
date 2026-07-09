@@ -33,7 +33,7 @@ describe('AuthService', () => {
   };
   let passwordHasher: { hash: jest.Mock; matches: jest.Mock };
   let refreshHasher: { hash: jest.Mock };
-  let protect: { index: jest.Mock; requestIndexing: jest.Mock };
+  let protect: { index: jest.Mock; scheduleIndexing: jest.Mock };
 
   const fakeManager = {
     getRepository: () => ({ create: (o: any) => o }),
@@ -100,8 +100,8 @@ describe('AuthService', () => {
         log.push('protect.index');
         return { protectId: 'p-1', indexingJobId: 'job-1' };
       }),
-      requestIndexing: jest.fn(async () => {
-        log.push('protect.requestIndexing');
+      scheduleIndexing: jest.fn(() => {
+        log.push('protect.scheduleIndexing');
       }),
     };
 
@@ -141,7 +141,7 @@ describe('AuthService', () => {
       expect(passwordHasher.hash).not.toHaveBeenCalled();
     });
 
-    it('saves the user, indexes inside the tx, then requests indexing AFTER commit', async () => {
+    it('saves the user, indexes inside the tx, then schedules indexing AFTER commit', async () => {
       const result = await service.register(registerDto());
 
       expect(result).toEqual({
@@ -149,7 +149,7 @@ describe('AuthService', () => {
         access_token: 'access',
         refresh_token: 'refresh',
       });
-      // protect.index happens inside the transaction; requestIndexing strictly after tx:end.
+      // protect.index happens inside the transaction; scheduleIndexing strictly after tx:end.
       expect(log).toEqual([
         'password.hash',
         'tx:start',
@@ -157,9 +157,9 @@ describe('AuthService', () => {
         'protect.index',
         'sessions.save',
         'tx:end',
-        'protect.requestIndexing',
+        'protect.scheduleIndexing',
       ]);
-      expect(protect.requestIndexing).toHaveBeenCalledWith('job-1', '홍길동', 'info');
+      expect(protect.scheduleIndexing).toHaveBeenCalledWith('job-1', '홍길동', 'info');
     });
   });
 

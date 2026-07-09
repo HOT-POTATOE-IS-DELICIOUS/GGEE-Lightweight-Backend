@@ -18,6 +18,10 @@ async function bootstrap(): Promise<void> {
     maxAge: cors.maxAge,
   });
 
+  // ProtectService drains its in-flight crawler dispatches in onModuleDestroy; without this,
+  // SIGTERM kills the process before those fire-and-forget calls land.
+  app.enableShutdownHooks();
+
   const port = config.getOrThrow<number>('server.port');
   await app.listen(port);
   new Logger('Bootstrap').log(`GGEE Lightweight Backend listening on :${port}`);

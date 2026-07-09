@@ -42,7 +42,7 @@ export class AuthService {
   }
 
   /**
-   * Register: user + protect + outbox + session in one transaction; the crawler index
+   * Register: user + protect + indexing job + session in one transaction; the crawler index
    * request (replacing the Kafka publish) fires *after* the transaction commits.
    */
   async register(dto: RegisterRequestDto): Promise<RegisterResponse> {
@@ -78,8 +78,10 @@ export class AuthService {
       },
     );
 
-    // Best-effort synchronous dispatch to the crawler (was: Kafka `crawl.request`).
-    await this.protect.requestIndexing(indexingJobId, target, info);
+    // Fire-and-forget dispatch to the crawler (was: Kafka `crawl.request`). Not awaited: the tx has
+    // committed, so its outcome cannot change this response — the client learns it from the
+    // indexing waiter instead. ProtectService drains any in-flight dispatch on shutdown.
+    this.protect.scheduleIndexing(indexingJobId, target, info);
 
     return {
       indexing_job_id: indexingJobId,
