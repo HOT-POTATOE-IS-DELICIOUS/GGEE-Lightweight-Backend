@@ -6,6 +6,7 @@ describe('parseDurationMs', () => {
     ['30s', 30_000],
     ['10m', 600_000],
     ['1h', 3_600_000],
+    ['7d', 604_800_000],
   ])('parses %s', (raw, expected) => {
     expect(parseDurationMs(raw, 1)).toBe(expected);
   });

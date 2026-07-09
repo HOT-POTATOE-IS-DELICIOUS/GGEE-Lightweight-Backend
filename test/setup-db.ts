@@ -3,6 +3,7 @@ import { Client } from 'pg';
 import { DataSource } from 'typeorm';
 import { InitialSchema1751000000000 } from '../src/database/migrations/1751000000000-InitialSchema';
 import { IndexingJobsFromOutbox1751000001000 } from '../src/database/migrations/1751000001000-IndexingJobsFromOutbox';
+import { IndexingJobsCreatedAtIndex1751000002000 } from '../src/database/migrations/1751000002000-IndexingJobsCreatedAtIndex';
 
 /**
  * Test-database bootstrap. Creates and migrates a dedicated `ggee_test` database so the E2E suite
@@ -66,7 +67,11 @@ export async function runMigrations(): Promise<void> {
     password: cfg.password,
     database: cfg.database,
     entities: [],
-    migrations: [InitialSchema1751000000000, IndexingJobsFromOutbox1751000001000],
+    migrations: [
+      InitialSchema1751000000000,
+      IndexingJobsFromOutbox1751000001000,
+      IndexingJobsCreatedAtIndex1751000002000,
+    ],
     synchronize: false,
   });
   await ds.initialize();

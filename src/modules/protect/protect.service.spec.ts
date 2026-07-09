@@ -6,7 +6,13 @@ import { ProtectService } from './protect.service';
 import { IndexingJobRepository } from './repositories/indexing-job.repository';
 import { ProtectRepository } from './repositories/protect.repository';
 
-const makeConfig = () => ({ getOrThrow: () => 'http://crawler' }) as unknown as ConfigService;
+const RETENTION_MS = 7 * 86_400_000;
+
+const makeConfig = () =>
+  ({
+    getOrThrow: (key: string) =>
+      key === 'indexing.jobRetentionMs' ? RETENTION_MS : 'http://crawler',
+  }) as unknown as ConfigService;
 
 const makeJobs = () =>
   ({
@@ -14,6 +20,7 @@ const makeJobs = () =>
     markCompleted: jest.fn(() => Promise.resolve(undefined)),
     markFailed: jest.fn(() => Promise.resolve(undefined)),
     findStatus: jest.fn(() => Promise.resolve(null)),
+    deleteOlderThan: jest.fn(() => Promise.resolve(0)),
   }) as unknown as jest.Mocked<IndexingJobRepository>;
 
 describe('ProtectService.requestIndexing', () => {
@@ -117,6 +124,45 @@ describe('ProtectService.scheduleIndexing', () => {
 
     await expect(service.onModuleDestroy()).resolves.toBeUndefined();
     expect(jobs.markFailed).toHaveBeenCalledWith('42');
+  });
+});
+
+describe('ProtectService.sweepExpiredJobs', () => {
+  const snowflake = { generateId: () => '1' } as unknown as SnowflakeService;
+  const http = { postJson: jest.fn() } as unknown as AiHttpClient;
+
+  it('deletes jobs older than the configured retention', async () => {
+    const jobs = makeJobs();
+    const service = new ProtectService(
+      {} as ProtectRepository,
+      jobs,
+      snowflake,
+      http,
+      makeConfig(),
+    );
+
+    const before = Date.now();
+    await service.sweepExpiredJobs();
+
+    expect(jobs.deleteOlderThan).toHaveBeenCalledTimes(1);
+    const cutoff = jobs.deleteOlderThan.mock.calls[0][0];
+    // Cutoff is "now minus retention", allowing for the clock ticking during the call.
+    expect(cutoff.getTime()).toBeGreaterThanOrEqual(before - RETENTION_MS - 5_000);
+    expect(cutoff.getTime()).toBeLessThanOrEqual(Date.now() - RETENTION_MS);
+  });
+
+  it('swallows a sweep failure so the interval keeps running', async () => {
+    const jobs = makeJobs();
+    jobs.deleteOlderThan.mockRejectedValueOnce(new Error('db down'));
+    const service = new ProtectService(
+      {} as ProtectRepository,
+      jobs,
+      snowflake,
+      http,
+      makeConfig(),
+    );
+
+    await expect(service.sweepExpiredJobs()).resolves.toBeUndefined();
   });
 });
 

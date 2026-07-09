@@ -3,11 +3,11 @@
  * Mirrors the original Spring `application.yaml` surface, minus Kafka/schema-registry.
  */
 
-/** Parse a Spring-style duration ("30s", "10s", "1h", "500ms") or bare number(ms) into milliseconds. */
+/** Parse a Spring-style duration ("30s", "10s", "1h", "7d", "500ms") or bare number(ms) into ms. */
 export function parseDurationMs(raw: string | undefined, fallbackMs: number): number {
   if (!raw) return fallbackMs;
   const trimmed = raw.trim();
-  const match = /^(\d+)\s*(ms|s|m|h)?$/.exec(trimmed);
+  const match = /^(\d+)\s*(ms|s|m|h|d)?$/.exec(trimmed);
   if (!match) return fallbackMs;
   const value = Number(match[1]);
   switch (match[2]) {
@@ -19,6 +19,8 @@ export function parseDurationMs(raw: string | undefined, fallbackMs: number): nu
       return value * 60_000;
     case 'h':
       return value * 3_600_000;
+    case 'd':
+      return value * 86_400_000;
     default:
       return value; // bare number == milliseconds
   }
@@ -89,6 +91,7 @@ export interface AppConfig {
     dedupTtlSeconds: number;
     dedupForwardUrl: string;
   };
+  indexing: { jobRetentionMs: number };
   newsCrawler: AiClientConfig;
 }
 
@@ -154,6 +157,11 @@ export default (): AppConfig => ({
     baseUrl: process.env.CRAWLER_BASE_URL ?? 'http://localhost:9005',
     dedupTtlSeconds: parseDurationSeconds(process.env.GGEE_CRAWLER_DEDUP_TTL, 3600),
     dedupForwardUrl: process.env.CRAWLER_DEDUP_FORWARD_URL ?? '',
+  },
+  indexing: {
+    // The 30-minute refresh mints a job row per protect target, forever. Nothing reads a job older
+    // than the waiter's 10-minute ceiling, so old rows are dead weight; sweep them.
+    jobRetentionMs: parseDurationMs(process.env.INDEXING_JOB_RETENTION, 7 * 86_400_000),
   },
   newsCrawler: {
     baseUrl: process.env.NEWS_CRAWLER_BASE_URL ?? 'http://localhost:4000',

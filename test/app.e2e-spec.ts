@@ -6,6 +6,7 @@ import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import Redis from 'ioredis';
 import request from 'supertest';
+import { ProtectService } from '../src/modules/protect/protect.service';
 import { AiMocks, startAiMocks } from './mock-ai';
 import { ensureTestDatabase, runMigrations, truncateAll } from './setup-db';
 
@@ -603,6 +604,31 @@ describe('GGEE Lightweight Backend (E2E)', () => {
 
     const r2 = await rawRequest('GET', `/indexing/jobs/${failedJobId}`, null, accessToken);
     expect(r2.text).toContain('event: completed');
+  });
+
+  it('retention sweep drops jobs past the cutoff and keeps recent ones', async () => {
+    // Straight into the table: the sweep's DELETE targets the quoted "createdAt" column, which a
+    // mocked repository would never exercise.
+    const staleId = '900000000000000001';
+    await dataSource.query(
+      `INSERT INTO indexing_jobs (id, protect_target, protect_target_info, status, "createdAt", deleted)
+       VALUES ($1, 'stale', 'info', 'COMPLETED', NOW() - INTERVAL '8 days', false)`,
+      [staleId],
+    );
+
+    const countOf = async (id: string): Promise<number> => {
+      const rows: { count: string }[] = await dataSource.query(
+        'SELECT count(*)::text AS count FROM indexing_jobs WHERE id = $1',
+        [id],
+      );
+      return Number(rows[0].count);
+    };
+    expect(await countOf(staleId)).toBe(1);
+
+    await app.get(ProtectService).sweepExpiredJobs();
+
+    expect(await countOf(staleId)).toBe(0);
+    expect(await countOf(indexingJobId)).toBe(1); // created seconds ago, well inside the 7d default
   });
 
   // ── failure paths (AI mocks stopped) ─────────────────────────────────────────────

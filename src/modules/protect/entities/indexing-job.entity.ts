@@ -1,4 +1,4 @@
-import { Column, Entity } from 'typeorm';
+import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '../../../common/entity/base.entity';
 
 export enum IndexingJobStatus {
@@ -18,6 +18,7 @@ export enum IndexingJobStatus {
  * "awaiting pickup", and a dispatch failure lands in FAILED rather than waiting for a sweeper.
  */
 @Entity('indexing_jobs')
+@Index('idx_indexing_jobs_created_at', ['createdAt']) // retention sweep
 export class IndexingJobEntity extends BaseEntity {
   @Column({ name: 'protect_target', type: 'varchar', length: 255 })
   protectTarget!: string;

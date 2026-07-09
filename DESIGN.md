@@ -64,6 +64,7 @@ src/
 - **완료 콜백**: 크롤러가 `POST /internal/crawl/result`(아래 4.2)로 결과 전송, `status=="all_done"`이면 `job_id`로 COMPLETED 마킹.
 - **상태 전이 우선순위**: `FAILED`는 `PENDING`에서만, `COMPLETED`는 `PENDING`과 `FAILED`에서 전이된다. 우리 쪽 10초 HTTP 타임아웃은 "요청이 도달했는가"에 대한 추측일 뿐이고 크롤러의 `all_done`은 "크롤이 끝났는가"에 대한 사실이므로, 추측이 사실을 덮지 못하게 한다. 이미 `failed`를 받고 끊긴 대기자는 재조회하면 `completed`를 본다.
 - **30분 리프레시**: `@Interval(30min)` — `SELECT DISTINCT target,info WHERE deleted=false` → 각 건 새 잡(PENDING) 생성 + 크롤러 재요청(best-effort). 단일 레플리카 가정. 새 `job_id`를 발급하므로 기존 대기자를 구제하지는 않는다.
+- **보존정책**: 리프레시가 타겟마다 30분에 한 행씩 무한히 쌓으므로 `@Interval(1h)` 스윕이 `INDEXING_JOB_RETENTION`(기본 `7d`)보다 오래된 잡을 하드 삭제한다. 대기자 상한이 10분이라 그보다 오래된 행은 아무도 읽지 않는다. `idx_indexing_jobs_created_at`이 이 DELETE를 받친다.
 
 ### 4.2 크롤러 dedup (Kafka Streams → Redis)
 - **수신**: `POST /internal/crawl/result` — 원본 `crawl.community.result` 토픽 대체. `status=="completed"`인 경우만 dedup 처리(+ `all_done`은 잡 완료 마킹).

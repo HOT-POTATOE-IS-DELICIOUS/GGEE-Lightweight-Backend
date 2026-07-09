@@ -40,6 +40,7 @@ export class ProtectService implements OnModuleDestroy {
   private readonly crawlerBaseUrl: string;
   private readonly crawlerTimeoutMs = 10_000;
   private readonly inFlightDispatches = new Set<Promise<void>>();
+  private readonly jobRetentionMs: number;
 
   constructor(
     private readonly protects: ProtectRepository,
@@ -49,6 +50,7 @@ export class ProtectService implements OnModuleDestroy {
     config: ConfigService,
   ) {
     this.crawlerBaseUrl = config.getOrThrow<string>('crawler.baseUrl');
+    this.jobRetentionMs = config.getOrThrow<number>('indexing.jobRetentionMs');
   }
 
   /**
@@ -157,6 +159,23 @@ export class ProtectService implements OnModuleDestroy {
       } catch (err) {
         this.logger.warn(`Refresh enqueue failed for ${snapshot.target}: ${String(err)}`);
       }
+    }
+  }
+
+  /**
+   * Bound the growth `refreshAll` causes: it inserts one job per protect target every 30 minutes
+   * and nothing ever removed them. Runs hourly; a sweep that fails is retried on the next tick.
+   */
+  @Interval('indexing-job-retention', 60 * 60 * 1000)
+  async sweepExpiredJobs(): Promise<void> {
+    const cutoff = new Date(Date.now() - this.jobRetentionMs);
+    try {
+      const removed = await this.jobs.deleteOlderThan(cutoff);
+      if (removed > 0) {
+        this.logger.log(`Removed ${removed} indexing job(s) older than ${cutoff.toISOString()}`);
+      }
+    } catch (err) {
+      this.logger.warn(`Indexing-job retention sweep failed: ${String(err)}`);
     }
   }
 

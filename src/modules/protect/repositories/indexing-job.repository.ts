@@ -51,6 +51,21 @@ export class IndexingJobRepository {
       .execute();
   }
 
+  /**
+   * Hard-delete jobs created before `cutoff`, whatever their status. Nothing reads a job older than
+   * the waiter's 10-minute ceiling, and a PENDING row that old will never be dispatched either.
+   * Returns the number of rows removed.
+   */
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    const result = await this.repo
+      .createQueryBuilder()
+      .delete()
+      .from(IndexingJobEntity)
+      .where('"createdAt" < :cutoff', { cutoff })
+      .execute();
+    return result.affected ?? 0;
+  }
+
   /** Used by the indexing-completion waiter (SSE long-poll). Unknown/malformed id -> null. */
   async findStatus(id: string): Promise<IndexingJobStatus | null> {
     if (!/^\d+$/.test(id)) return null; // id is a bigint; a non-numeric param would blow up the query
