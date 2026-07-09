@@ -1,6 +1,11 @@
 node_modules/
 dist/
+
+# Never commit real environment files; .env.example is the tracked template.
 .env
+.env.*
+!.env.example
+
 *.log
 coverage/
 .DS_Store
