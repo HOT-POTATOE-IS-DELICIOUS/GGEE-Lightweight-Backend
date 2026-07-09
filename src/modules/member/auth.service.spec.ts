@@ -4,8 +4,6 @@ import { SnowflakeService } from '../../common/snowflake/snowflake.service';
 import { Role } from '../../security/role.enum';
 import { ProtectService } from '../protect/protect.service';
 import { AuthService } from './auth.service';
-import { PasswordHasher } from './crypto/password.hasher';
-import { RefreshTokenHasher } from './crypto/refresh-token.hasher';
 import { LoginRequestDto, RefreshRequestDto, RegisterRequestDto } from './dto/auth.dto';
 import { TokenService } from './jwt/token.service';
 import { SessionRepository } from './repositories/session.repository';
@@ -117,8 +115,8 @@ describe('AuthService', () => {
       users as unknown as UserRepository,
       sessions as unknown as SessionRepository,
       tokens as unknown as TokenService,
-      passwordHasher as unknown as PasswordHasher,
-      refreshHasher as unknown as RefreshTokenHasher,
+      passwordHasher,
+      refreshHasher,
       snowflake,
       protect as unknown as ProtectService,
       config,

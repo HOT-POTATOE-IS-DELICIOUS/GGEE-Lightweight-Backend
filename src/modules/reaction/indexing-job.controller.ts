@@ -30,14 +30,14 @@ export class IndexingJobController {
 
     let finished = false;
     let polling = false;
-    let pollTimer: NodeJS.Timeout | undefined;
-    let heartbeatTimer: NodeJS.Timeout | undefined;
-    let ceilingTimer: NodeJS.Timeout | undefined;
 
+    // Collected rather than held in named bindings: `close` can fire before any timer exists (the
+    // status read below is awaited), and cleanup has to be safe to call at that point.
+    const timers: NodeJS.Timeout[] = [];
     const cleanup = (): void => {
-      if (pollTimer) clearInterval(pollTimer);
-      if (heartbeatTimer) clearInterval(heartbeatTimer);
-      if (ceilingTimer) clearTimeout(ceilingTimer);
+      // clearInterval also cancels a setTimeout handle: both are the same Node Timeout object.
+      for (const timer of timers) clearInterval(timer);
+      timers.length = 0;
     };
 
     const finish = (status: IndexingJobStatus | null): void => {
@@ -73,27 +73,30 @@ export class IndexingJobController {
       return;
     }
 
-    heartbeatTimer = setInterval(() => {
-      if (finished) return;
-      res.write(`event: heartbeat\ndata: ping\n\n`);
-    }, HEARTBEAT_INTERVAL_MS);
+    timers.push(
+      setInterval(() => {
+        if (finished) return;
+        res.write(`event: heartbeat\ndata: ping\n\n`);
+      }, HEARTBEAT_INTERVAL_MS),
+    );
 
-    pollTimer = setInterval(() => {
-      if (finished || polling) return;
-      polling = true;
-      void this.protectService
-        .getJobStatus(jobId)
-        .then((status) => {
-          if (isTerminal(status)) finish(status);
-        })
-        .catch(() => {
-          // Swallow transient poll errors; keep waiting until the job settles or the ceiling hits.
-        })
-        .finally(() => {
-          polling = false;
-        });
-    }, POLL_INTERVAL_MS);
-
-    ceilingTimer = setTimeout(() => finish(null), CEILING_MS);
+    timers.push(
+      setInterval(() => {
+        if (finished || polling) return;
+        polling = true;
+        void this.protectService
+          .getJobStatus(jobId)
+          .then((status) => {
+            if (isTerminal(status)) finish(status);
+          })
+          .catch(() => {
+            // Swallow transient poll errors; keep waiting until the job settles or the ceiling.
+          })
+          .finally(() => {
+            polling = false;
+          });
+      }, POLL_INTERVAL_MS),
+      setTimeout(() => finish(null), CEILING_MS),
+    );
   }
 }

@@ -28,15 +28,19 @@ export class UserRepository {
     try {
       return await this.scoped(manager).save(user);
     } catch (err) {
-      if (err instanceof QueryFailedError && this.isUniqueViolation(err)) {
+      if (err instanceof QueryFailedError && this.isUniqueViolation(err.driverError)) {
         throw new BusinessException('EMAIL_ALREADY_EXISTS');
       }
       throw err;
     }
   }
 
-  private isUniqueViolation(err: QueryFailedError): boolean {
+  /**
+   * `QueryFailedError` is generic over its driver error and TypeORM defaults that parameter to
+   * `any`, so take it as `unknown` and narrow here rather than letting `any` leak into the caller.
+   */
+  private isUniqueViolation(driverError: unknown): boolean {
     // Postgres unique_violation SQLSTATE
-    return (err.driverError as { code?: string }).code === '23505';
+    return (driverError as { code?: string } | null)?.code === '23505';
   }
 }

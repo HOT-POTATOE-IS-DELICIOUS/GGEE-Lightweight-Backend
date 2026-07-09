@@ -100,7 +100,9 @@ export class TokenService {
       throw new BusinessException('INVALID_TOKEN');
     }
 
-    if (claims.tokenType !== expected) {
+    // `claims.tokenType` is a raw string off an untrusted token, so widen the enum rather than
+    // pretend the claim is already one of its members.
+    if (claims.tokenType !== (expected as string)) {
       throw new BusinessException('INVALID_TOKEN_TYPE');
     }
 
@@ -113,8 +115,8 @@ export class TokenService {
 
   private normalizeRole(raw: string): Role {
     const name = raw?.startsWith('ROLE_') ? raw.substring('ROLE_'.length) : raw;
-    if (name === Role.ADMIN) return Role.ADMIN;
-    if (name === Role.USER) return Role.USER;
+    if (name === (Role.ADMIN as string)) return Role.ADMIN;
+    if (name === (Role.USER as string)) return Role.USER;
     throw new BusinessException('INVALID_TOKEN');
   }
 }

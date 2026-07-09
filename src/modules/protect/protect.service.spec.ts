@@ -11,10 +11,10 @@ const makeConfig = () =>
 
 const makeJobs = () =>
   ({
-    save: jest.fn(async (job) => job),
-    markCompleted: jest.fn(async () => undefined),
-    markFailed: jest.fn(async () => undefined),
-    findStatus: jest.fn(async () => null),
+    save: jest.fn((job) => Promise.resolve(job)),
+    markCompleted: jest.fn(() => Promise.resolve(undefined)),
+    markFailed: jest.fn(() => Promise.resolve(undefined)),
+    findStatus: jest.fn(() => Promise.resolve(null)),
   }) as unknown as jest.Mocked<IndexingJobRepository>;
 
 describe('ProtectService.requestIndexing', () => {
@@ -23,7 +23,7 @@ describe('ProtectService.requestIndexing', () => {
 
   it('leaves the job PENDING when the crawler accepts the dispatch', async () => {
     const jobs = makeJobs();
-    const http = { postJson: jest.fn(async () => ({})) } as unknown as AiHttpClient;
+    const http = { postJson: jest.fn(() => Promise.resolve({})) } as unknown as AiHttpClient;
     const service = new ProtectService(protects, jobs, snowflake, http, makeConfig());
 
     await service.requestIndexing('42', '홍길동', 'info');
@@ -39,9 +39,7 @@ describe('ProtectService.requestIndexing', () => {
   it('marks the job FAILED when the dispatch throws, so the waiter reports it', async () => {
     const jobs = makeJobs();
     const http = {
-      postJson: jest.fn(async () => {
-        throw new Error('crawler down');
-      }),
+      postJson: jest.fn(() => Promise.reject(new Error('crawler down'))),
     } as unknown as AiHttpClient;
     const service = new ProtectService(protects, jobs, snowflake, http, makeConfig());
 
@@ -54,9 +52,7 @@ describe('ProtectService.requestIndexing', () => {
     const jobs = makeJobs();
     jobs.markFailed.mockRejectedValueOnce(new Error('db down'));
     const http = {
-      postJson: jest.fn(async () => {
-        throw new Error('crawler down');
-      }),
+      postJson: jest.fn(() => Promise.reject(new Error('crawler down'))),
     } as unknown as AiHttpClient;
     const service = new ProtectService(protects, jobs, snowflake, http, makeConfig());
 
@@ -114,9 +110,7 @@ describe('ProtectService.scheduleIndexing', () => {
   it('onModuleDestroy resolves even when the dispatch failed', async () => {
     const jobs = makeJobs();
     const http = {
-      postJson: jest.fn(async () => {
-        throw new Error('crawler down');
-      }),
+      postJson: jest.fn(() => Promise.reject(new Error('crawler down'))),
     } as unknown as AiHttpClient;
     const service = new ProtectService(protects, jobs, snowflake, http, makeConfig());
 

@@ -49,7 +49,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof HttpException) {
-      const status = exception.getStatus();
+      // getStatus() is typed `number`; every value Nest puts there is an HttpStatus member.
+      const status: HttpStatus = exception.getStatus();
       if (status === HttpStatus.METHOD_NOT_ALLOWED) {
         return {
           status,
