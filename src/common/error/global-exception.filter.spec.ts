@@ -44,10 +44,7 @@ describe('GlobalExceptionFilter', () => {
 
   it('renders only the first violation for a 400 class-validator payload', () => {
     const res = makeResponse();
-    const exception = new HttpException(
-      { message: ['첫 메시지', '둘째'] },
-      HttpStatus.BAD_REQUEST,
-    );
+    const exception = new HttpException({ message: ['첫 메시지', '둘째'] }, HttpStatus.BAD_REQUEST);
     filter.catch(exception, makeHost(res));
 
     expect(res.status).toHaveBeenCalledWith(400);

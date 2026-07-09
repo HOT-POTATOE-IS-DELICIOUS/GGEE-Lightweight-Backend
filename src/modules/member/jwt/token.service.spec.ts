@@ -27,10 +27,7 @@ const stubConfig = {
 const principal: AuthUser = { userId: '42', role: Role.USER, sessionId: '99' };
 
 /** Sign a raw JWT directly (used to forge expired / wrong-role / wrong-key tokens). */
-function signRaw(
-  overrides: Record<string, unknown>,
-  key: Buffer = KEY,
-): string {
+function signRaw(overrides: Record<string, unknown>, key: Buffer = KEY): string {
   const nowSec = Math.floor(Date.now() / 1000);
   const payload = {
     sub: '42',

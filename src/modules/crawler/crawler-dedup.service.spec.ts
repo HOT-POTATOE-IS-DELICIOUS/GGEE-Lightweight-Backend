@@ -4,21 +4,17 @@ import { AiHttpClient } from '../../common/http/ai-http.client';
 import { SnowflakeService } from '../../common/snowflake/snowflake.service';
 import { ProtectService } from '../protect/protect.service';
 import { CrawlerDedupService } from './crawler-dedup.service';
-import {
-  CrawlCommentMessage,
-  CrawlPostMessage,
-  CrawlResultMessage,
-} from './crawler.types';
+import { CrawlCommentMessage, CrawlPostMessage, CrawlResultMessage } from './crawler.types';
 
 const makeConfig = (forwardUrl = 'http://downstream') =>
   ({
     getOrThrow: (key: string) =>
-      ((
-        {
+      (
+        ({
           'crawler.dedupTtlSeconds': 3600,
           'crawler.dedupForwardUrl': forwardUrl,
-        } as Record<string, unknown>
-      )[key]),
+        }) as Record<string, unknown>
+      )[key],
   }) as unknown as ConfigService;
 
 const comment = (over: Partial<CrawlCommentMessage> = {}): CrawlCommentMessage => ({
@@ -63,7 +59,9 @@ interface Harness {
   generateId: jest.Mock;
 }
 
-function build(opts: { existsReturn?: number | ((key: string) => number); forwardUrl?: string } = {}): Harness {
+function build(
+  opts: { existsReturn?: number | ((key: string) => number); forwardUrl?: string } = {},
+): Harness {
   const existsImpl = opts.existsReturn ?? 0;
   const exists = jest.fn((key: string) =>
     Promise.resolve(typeof existsImpl === 'function' ? existsImpl(key) : existsImpl),
@@ -112,12 +110,7 @@ describe('CrawlerDedupService', () => {
       result({ results: [post({ url: 'http://forum/p', comments: [comment({ id: 42 })] })] }),
     );
 
-    expect(h.set).toHaveBeenCalledWith(
-      'dedup:42|http://forum/p',
-      expect.any(String),
-      'EX',
-      3600,
-    );
+    expect(h.set).toHaveBeenCalledWith('dedup:42|http://forum/p', expect.any(String), 'EX', 3600);
     // already-seen -> not forwarded
     expect(h.postJson).not.toHaveBeenCalled();
   });
@@ -146,9 +139,7 @@ describe('CrawlerDedupService', () => {
       }),
     );
 
-    const postCalls = h.postJson.mock.calls.filter((c) =>
-      String(c[0]).endsWith('/post.deduped'),
-    );
+    const postCalls = h.postJson.mock.calls.filter((c) => String(c[0]).endsWith('/post.deduped'));
     const commentCalls = h.postJson.mock.calls.filter((c) =>
       String(c[0]).endsWith('/comment.deduped'),
     );

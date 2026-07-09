@@ -70,11 +70,7 @@ export class AiHttpClient {
    * POST a JSON body and consume the upstream SSE response, yielding each event.
    * `idleTimeoutMs` aborts the stream if no event is received within the window.
    */
-  async *streamSse(
-    url: string,
-    body: unknown,
-    idleTimeoutMs: number,
-  ): AsyncGenerator<SseEvent> {
+  async *streamSse(url: string, body: unknown, idleTimeoutMs: number): AsyncGenerator<SseEvent> {
     const controller = new AbortController();
     let idleTimer: NodeJS.Timeout | undefined;
     const resetIdle = () => {

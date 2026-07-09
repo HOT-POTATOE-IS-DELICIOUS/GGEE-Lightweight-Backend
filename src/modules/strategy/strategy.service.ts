@@ -3,10 +3,7 @@ import { BusinessException } from '../../common/error/business.exception';
 import { SnowflakeService } from '../../common/snowflake/snowflake.service';
 import { ProtectService } from '../protect/protect.service';
 import { MessageResponse, RoomResponse } from './dto/strategy.dto';
-import {
-  MessageRole,
-  StrategyChatMessageEntity,
-} from './entities/strategy-chat-message.entity';
+import { MessageRole, StrategyChatMessageEntity } from './entities/strategy-chat-message.entity';
 import { StrategyChatRoomEntity } from './entities/strategy-chat-room.entity';
 import { StrategyAiClient } from './strategy-ai.client';
 import { StrategyChatMessageRepository } from './repositories/strategy-chat-message.repository';

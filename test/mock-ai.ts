@@ -95,7 +95,15 @@ const AUDIT_RESPONSE = {
 const ISSUE_RESPONSE = {
   entity_name: null,
   issues: [
-    { id: 'n2', title: 't2', summary: 's2', date: '2024-06-01', criticism: 5, support: 6, interest: 7 },
+    {
+      id: 'n2',
+      title: 't2',
+      summary: 's2',
+      date: '2024-06-01',
+      criticism: 5,
+      support: 6,
+      interest: 7,
+    },
     {
       id: 'n1',
       title: 't1',

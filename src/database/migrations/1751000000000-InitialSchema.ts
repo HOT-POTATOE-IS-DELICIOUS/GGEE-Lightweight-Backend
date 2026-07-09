@@ -19,9 +19,7 @@ export class InitialSchema1751000000000 implements MigrationInterface {
         "deleted" BOOLEAN NOT NULL DEFAULT FALSE,
         "deleted_at" TIMESTAMP NULL
       )`);
-    await queryRunner.query(
-      `CREATE UNIQUE INDEX "uniq_users_email" ON "users" ("email")`,
-    );
+    await queryRunner.query(`CREATE UNIQUE INDEX "uniq_users_email" ON "users" ("email")`);
 
     // user_sessions
     await queryRunner.query(`

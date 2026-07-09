@@ -6,12 +6,12 @@ import { IssueService } from './issue.service';
 
 const config = {
   getOrThrow: (key: string) =>
-    ((
-      { 'ai.issue.baseUrl': 'http://issue', 'ai.issue.timeoutMs': 1000 } as Record<
+    (
+      ({ 'ai.issue.baseUrl': 'http://issue', 'ai.issue.timeoutMs': 1000 }) as Record<
         string,
         unknown
       >
-    )[key]),
+    )[key],
 } as unknown as ConfigService;
 
 const makeProtect = (over: Partial<{ info: string | null }> = {}) =>
@@ -68,9 +68,7 @@ describe('IssueService', () => {
   });
 
   it('falls back to the requested target when the AI entity_name is null', async () => {
-    const getJson = jest
-      .fn()
-      .mockResolvedValue({ entity_name: null, issues: [], connections: [] });
+    const getJson = jest.fn().mockResolvedValue({ entity_name: null, issues: [], connections: [] });
     const http = { getJson } as unknown as AiHttpClient;
     const service = new IssueService(makeProtect(), http, config);
 
@@ -161,11 +159,7 @@ describe('IssueService', () => {
     });
     const getJson = jest.fn().mockResolvedValue({
       entity_name: 'x',
-      issues: [
-        node('n1', '2020-01-01'),
-        node('n2', '2021-01-01'),
-        node('n3', null),
-      ],
+      issues: [node('n1', '2020-01-01'), node('n2', '2021-01-01'), node('n3', null)],
       connections: [
         // source older than target -> swapped
         { source_id: 'n1', target_id: 'n2', similarity: 1 },

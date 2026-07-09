@@ -4,12 +4,12 @@ import { NewsCrawlerClient } from './news-crawler.client';
 
 const config = {
   getOrThrow: (key: string) =>
-    ((
-      {
+    (
+      ({
         'newsCrawler.baseUrl': 'http://news-crawler',
         'newsCrawler.timeoutMs': 2000,
-      } as Record<string, unknown>
-    )[key]),
+      }) as Record<string, unknown>
+    )[key],
 } as unknown as ConfigService;
 
 describe('NewsCrawlerClient', () => {

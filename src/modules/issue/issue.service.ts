@@ -3,11 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AiHttpClient, AiHttpError } from '../../common/http/ai-http.client';
 import { BusinessException } from '../../common/error/business.exception';
 import { ProtectService } from '../protect/protect.service';
-import {
-  IssueConnectionResponse,
-  IssueGraphResponse,
-  IssueNodeResponse,
-} from './dto/issue.dto';
+import { IssueConnectionResponse, IssueGraphResponse, IssueNodeResponse } from './dto/issue.dto';
 
 /** Raw (snake_case) shapes returned by the Issue AI service. */
 interface IssueAiNode {

@@ -6,8 +6,7 @@ import { ProtectService } from './protect.service';
 import { IndexingJobRepository } from './repositories/indexing-job.repository';
 import { ProtectRepository } from './repositories/protect.repository';
 
-const makeConfig = () =>
-  ({ getOrThrow: () => 'http://crawler' }) as unknown as ConfigService;
+const makeConfig = () => ({ getOrThrow: () => 'http://crawler' }) as unknown as ConfigService;
 
 const makeJobs = () =>
   ({

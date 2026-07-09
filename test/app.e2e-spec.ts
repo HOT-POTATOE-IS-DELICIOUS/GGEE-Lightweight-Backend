@@ -373,12 +373,7 @@ describe('GGEE Lightweight Backend (E2E)', () => {
     expect(res.body).toHaveLength(1);
     const room = res.body[0];
     expect(room.title).toBe(ROOM_MESSAGE.slice(0, 12));
-    expect(Object.keys(room).sort()).toEqual([
-      'created_at',
-      'last_chatted_at',
-      'room_id',
-      'title',
-    ]);
+    expect(Object.keys(room).sort()).toEqual(['created_at', 'last_chatted_at', 'room_id', 'title']);
     roomLastChattedBefore = room.last_chatted_at;
   });
 
@@ -497,8 +492,24 @@ describe('GGEE Lightweight Backend (E2E)', () => {
           body: 'b',
           url: postUrl,
           comments: [
-            { id: 101, parent_id: null, author: 'a1', date: '2024', content: 'c1', likes: 1, dislikes: 0 },
-            { id: 102, parent_id: null, author: 'a2', date: '2024', content: 'c2', likes: 2, dislikes: 0 },
+            {
+              id: 101,
+              parent_id: null,
+              author: 'a1',
+              date: '2024',
+              content: 'c1',
+              likes: 1,
+              dislikes: 0,
+            },
+            {
+              id: 102,
+              parent_id: null,
+              author: 'a2',
+              date: '2024',
+              content: 'c2',
+              likes: 2,
+              dislikes: 0,
+            },
           ],
         },
       ],
@@ -527,10 +538,9 @@ describe('GGEE Lightweight Backend (E2E)', () => {
   // ── indexing completion ──────────────────────────────────────────────────────────
 
   it('POST /internal/crawl/result (all_done) → job COMPLETED; SSE waiter emits completed/done', async () => {
-    const before = await dataSource.query(
-      'SELECT status FROM indexing_jobs WHERE id = $1',
-      [indexingJobId],
-    );
+    const before = await dataSource.query('SELECT status FROM indexing_jobs WHERE id = $1', [
+      indexingJobId,
+    ]);
     expect(before[0].status).not.toBe('COMPLETED');
 
     await request(server)
@@ -538,10 +548,9 @@ describe('GGEE Lightweight Backend (E2E)', () => {
       .send({ jobId: indexingJobId, status: 'all_done' })
       .expect(202);
 
-    const after = await dataSource.query(
-      'SELECT status FROM indexing_jobs WHERE id = $1',
-      [indexingJobId],
-    );
+    const after = await dataSource.query('SELECT status FROM indexing_jobs WHERE id = $1', [
+      indexingJobId,
+    ]);
     expect(after[0].status).toBe('COMPLETED');
 
     const r = await rawRequest('GET', `/indexing/jobs/${indexingJobId}`, null, accessToken);

@@ -8,12 +8,12 @@ import { AuditService } from './audit.service';
 
 const config = {
   getOrThrow: (key: string) =>
-    ((
-      { 'ai.audit.baseUrl': 'http://audit', 'ai.audit.timeoutMs': 2000 } as Record<
+    (
+      ({ 'ai.audit.baseUrl': 'http://audit', 'ai.audit.timeoutMs': 2000 }) as Record<
         string,
         unknown
       >
-    )[key]),
+    )[key],
 } as unknown as ConfigService;
 
 const protect = {
@@ -33,9 +33,7 @@ const fullAiReview = {
   sentence: { sentence_text: '문장', start_offset: 3, end_offset: 9 },
   perspective_ids: ['p1'],
   perspective_labels: ['label'],
-  suggestions: [
-    { start_index: 1, end_index: 2, before: 'b', after: 'a', reason: 'r' },
-  ],
+  suggestions: [{ start_index: 1, end_index: 2, before: 'b', after: 'a', reason: 'r' }],
 };
 
 describe('AuditService', () => {
@@ -63,7 +61,9 @@ describe('AuditService', () => {
           sentence: { sentence_text: null, start_offset: null, end_offset: null },
           perspective_ids: null,
           perspective_labels: null,
-          suggestions: [{ start_index: null, end_index: null, before: null, after: null, reason: null }],
+          suggestions: [
+            { start_index: null, end_index: null, before: null, after: null, reason: null },
+          ],
         },
       ],
     });

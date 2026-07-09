@@ -48,10 +48,10 @@ export class SessionRepository {
       .createQueryBuilder()
       .update(UserSessionEntity)
       .set({ refreshTokenHash: newHash, expiresAt: newExpiresAt })
-      .where(
-        'session_id = :sessionId AND refresh_token_hash = :oldHash AND deleted = false',
-        { sessionId, oldHash },
-      )
+      .where('session_id = :sessionId AND refresh_token_hash = :oldHash AND deleted = false', {
+        sessionId,
+        oldHash,
+      })
       .execute();
     return result.affected ?? 0;
   }

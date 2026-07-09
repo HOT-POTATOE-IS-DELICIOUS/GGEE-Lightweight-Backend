@@ -58,7 +58,9 @@ describe('NewsController (GET /news)', () => {
   });
 
   it('rejects a missing q with 400 and never calls NewsCrawlerClient', async () => {
-    const res = await request(app.getHttpServer() as never).get('/news').query({});
+    const res = await request(app.getHttpServer() as never)
+      .get('/news')
+      .query({});
 
     expect(res.status).toBe(400);
     expect(search).not.toHaveBeenCalled();

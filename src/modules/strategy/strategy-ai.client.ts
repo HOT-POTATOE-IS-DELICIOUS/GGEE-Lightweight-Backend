@@ -26,11 +26,7 @@ export class StrategyAiClient {
     this.timeoutMs = config.getOrThrow<number>('ai.strategy.timeoutMs');
   }
 
-  async *stream(
-    message: string,
-    entityName: string,
-    entityInfo: string,
-  ): AsyncGenerator<SseEvent> {
+  async *stream(message: string, entityName: string, entityInfo: string): AsyncGenerator<SseEvent> {
     try {
       yield* this.http.streamSse(
         `${this.baseUrl}/strategy/stream`,

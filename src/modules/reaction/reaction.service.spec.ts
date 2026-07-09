@@ -4,12 +4,12 @@ import { ReactionService } from './reaction.service';
 
 const config = {
   getOrThrow: (key: string) =>
-    ((
-      { 'ai.reaction.baseUrl': 'http://reaction', 'ai.reaction.timeoutMs': 1500 } as Record<
+    (
+      ({ 'ai.reaction.baseUrl': 'http://reaction', 'ai.reaction.timeoutMs': 1500 }) as Record<
         string,
         unknown
       >
-    )[key]),
+    )[key],
 } as unknown as ConfigService;
 
 const newsItem = (n: number) => ({
@@ -20,9 +20,7 @@ const newsItem = (n: number) => ({
 
 describe('ReactionService', () => {
   it('GETs {baseUrl}/news/{node_id} with the node id URL-encoded', async () => {
-    const getJson = jest
-      .fn()
-      .mockResolvedValue({ node_id: 'up', count: 0, news: [] });
+    const getJson = jest.fn().mockResolvedValue({ node_id: 'up', count: 0, news: [] });
     const http = { getJson } as unknown as AiHttpClient;
     const service = new ReactionService(http, config);
 
@@ -44,9 +42,7 @@ describe('ReactionService', () => {
   });
 
   it('echoes the requested node id, not the upstream one', async () => {
-    const getJson = jest
-      .fn()
-      .mockResolvedValue({ node_id: 'upstream-id', count: 0, news: [] });
+    const getJson = jest.fn().mockResolvedValue({ node_id: 'upstream-id', count: 0, news: [] });
     const http = { getJson } as unknown as AiHttpClient;
     const service = new ReactionService(http, config);
 
@@ -55,9 +51,7 @@ describe('ReactionService', () => {
   });
 
   it('coalesces null news to an empty list with count 0', async () => {
-    const getJson = jest
-      .fn()
-      .mockResolvedValue({ node_id: 'up', count: 5, news: null });
+    const getJson = jest.fn().mockResolvedValue({ node_id: 'up', count: 5, news: null });
     const http = { getJson } as unknown as AiHttpClient;
     const service = new ReactionService(http, config);
 

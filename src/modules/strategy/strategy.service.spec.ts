@@ -4,10 +4,7 @@ import { ProtectService } from '../protect/protect.service';
 import { StrategyAiClient } from './strategy-ai.client';
 import { StrategyChatMessageRepository } from './repositories/strategy-chat-message.repository';
 import { StrategyChatRoomRepository } from './repositories/strategy-chat-room.repository';
-import {
-  MessageRole,
-  StrategyChatMessageEntity,
-} from './entities/strategy-chat-message.entity';
+import { MessageRole, StrategyChatMessageEntity } from './entities/strategy-chat-message.entity';
 import { StrategyChatRoomEntity } from './entities/strategy-chat-room.entity';
 import { SseWriter, StrategyService } from './strategy.service';
 
@@ -124,9 +121,7 @@ describe('StrategyService', () => {
     });
 
     it('persists a partial assistant turn with aiMessageId null when done never arrives', async () => {
-      const events: Evt[] = [
-        { event: 'content_chunk', data: JSON.stringify({ delta: '부분' }) },
-      ];
+      const events: Evt[] = [{ event: 'content_chunk', data: JSON.stringify({ delta: '부분' }) }];
       const save = jest.fn();
       const messages = { save } as unknown as StrategyChatMessageRepository;
       const aiClient = { stream: jest.fn(() => streamOf(events)) } as unknown as StrategyAiClient;

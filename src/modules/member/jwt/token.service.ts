@@ -70,7 +70,10 @@ export class TokenService {
       iat: nowSec,
       exp: nowSec + Math.floor(activeMs / 1000),
     };
-    return jwt.sign(payload, this.key, { algorithm: 'HS256', header: { alg: 'HS256', typ: 'jwt' } });
+    return jwt.sign(payload, this.key, {
+      algorithm: 'HS256',
+      header: { alg: 'HS256', typ: 'jwt' },
+    });
   }
 
   /** Resolve an access token from the raw `Authorization` header value (with Bearer prefix). */
