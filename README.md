@@ -44,11 +44,18 @@
 
 ## 실행
 
+전부 컨테이너로 (백엔드가 기동 시 마이그레이션을 자동 적용):
 ```bash
-cp .env.example .env      # 값 채우기 (특히 JWT_SECRET_KEY = base64)
-docker compose up -d      # postgres + redis
+cp .env.example .env          # 값 채우기 (특히 JWT_SECRET_KEY = base64)
+docker compose up -d --build  # postgres + redis + backend
+```
+
+호스트에서 앱만 직접 띄우려면:
+```bash
+cp .env.example .env
+docker compose up -d postgres redis
 npm install
-npm run migration:run     # 스키마 생성
+npm run migration:run         # 스키마 생성
 npm run start:dev
 ```
 
@@ -56,6 +63,36 @@ npm run start:dev
 ```bash
 openssl rand -base64 48
 ```
+
+## 외부 서버 연결
+
+`.env`는 두 종류의 주소를 구분한다.
+
+- `DATABASE_HOST` / `REDIS_HOST` — **호스트에서** 실행하는 도구용 (`start:dev`, `migration:run`, `test:e2e`).
+- `BACKEND_DATABASE_HOST` / `BACKEND_DATABASE_PORT` / `BACKEND_REDIS_HOST` / `BACKEND_REDIS_PORT` — **백엔드 컨테이너가** 바라볼 주소. 비워두면 번들된 `postgres`·`redis` 서비스를 쓴다.
+
+외부 DB/캐시(관리형 서비스, 다른 서버 IP)를 쓰려면 `.env`에 채우고 번들 서비스 없이 백엔드만 띄운다:
+
+```bash
+# .env
+BACKEND_DATABASE_HOST=10.0.0.5
+BACKEND_DATABASE_PORT=5432
+BACKEND_REDIS_HOST=10.0.0.9
+
+docker compose up -d --no-deps backend
+```
+
+외부 AI·크롤러(`GGEE_AI_*_BASE_URL`, `CRAWLER_BASE_URL`)는 `.env`에서 그대로 컨테이너에 주입되므로, **컨테이너 안에서 닿는 주소**여야 한다.
+
+| 대상 | 값 |
+|---|---|
+| 외부 서버 | `http://10.0.0.7:9001` |
+| 호스트에서 도는 서비스 | `http://host.docker.internal:9001` |
+| 같은 compose 네트워크의 컨테이너 | `http://<service-name>:9001` |
+
+`host.docker.internal`은 compose의 `extra_hosts: host-gateway` 덕에 Linux에서도 해석된다.
+
+> `.env`의 값은 컨테이너에 **평문 환경변수**로 들어간다(`docker inspect`로 보임). Docker `secrets:`가 아니므로 운영에서는 별도 시크릿 매니저로 주입할 것.
 
 ## 스크립트
 

@@ -38,13 +38,21 @@ services:
     container_name: ggee-lw-backend
     restart: unless-stopped
     env_file:
+      # Injects every var from .env (JWT, CORS, snowflake, AI base URLs, crawler URL, ...).
+      # The AI/crawler URLs are used verbatim, so point them at addresses reachable from
+      # inside this container: an external host/IP, or host.docker.internal for the host.
       - .env
     environment:
-      # Override host names to the compose service names (the .env uses localhost for local dev).
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      # Where the backend CONTAINER reaches its datastores. These override the host-facing
+      # values in .env. Leave the BACKEND_* vars unset to use the bundled services below;
+      # set them in .env to an external host/IP to use a managed database or cache.
+      DATABASE_HOST: ${BACKEND_DATABASE_HOST:-postgres}
+      DATABASE_PORT: ${BACKEND_DATABASE_PORT:-5432}
+      REDIS_HOST: ${BACKEND_REDIS_HOST:-redis}
+      REDIS_PORT: ${BACKEND_REDIS_PORT:-6379}
+    extra_hosts:
+      # Makes host.docker.internal resolve on Linux too, not just Docker Desktop.
+      - "host.docker.internal:host-gateway"
     ports:
       - "${SERVER_PORT}:8080"
     depends_on:
