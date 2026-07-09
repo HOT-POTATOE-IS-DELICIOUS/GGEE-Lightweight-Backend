@@ -89,6 +89,7 @@ export interface AppConfig {
     dedupTtlSeconds: number;
     dedupForwardUrl: string;
   };
+  newsCrawler: AiClientConfig;
 }
 
 export default (): AppConfig => ({
@@ -153,5 +154,9 @@ export default (): AppConfig => ({
     baseUrl: process.env.CRAWLER_BASE_URL ?? 'http://localhost:9005',
     dedupTtlSeconds: parseDurationSeconds(process.env.GGEE_CRAWLER_DEDUP_TTL, 3600),
     dedupForwardUrl: process.env.CRAWLER_DEDUP_FORWARD_URL ?? '',
+  },
+  newsCrawler: {
+    baseUrl: process.env.NEWS_CRAWLER_BASE_URL ?? 'http://localhost:4000',
+    timeoutMs: parseDurationMs(process.env.NEWS_CRAWLER_TIMEOUT, 10_000),
   },
 });

@@ -102,7 +102,7 @@ src/
 
 ## 8. 설정(env)
 
-DB(`DATABASE_URL` 또는 host/port/user/pw/db), `SERVER_PORT`, CORS 6종, JWT 5종, `SNOWFLAKE_WORKER_ID`, AI 4종 base-url/timeout, `REDIS_URL`, `GGEE_CRAWLER_DEDUP_TTL`, `CRAWLER_BASE_URL`, `CRAWLER_DEDUP_FORWARD_URL`.
+DB(`DATABASE_URL` 또는 host/port/user/pw/db), `SERVER_PORT`, CORS 6종, JWT 5종, `SNOWFLAKE_WORKER_ID`, AI 4종 base-url/timeout, `REDIS_URL`, `GGEE_CRAWLER_DEDUP_TTL`, `CRAWLER_BASE_URL`, `CRAWLER_DEDUP_FORWARD_URL`, `NEWS_CRAWLER_BASE_URL`/`NEWS_CRAWLER_TIMEOUT`(GGEE-NEWS-CRAWLER `/search` 프록시).
 제거: 모든 `KAFKA_*`, `SCHEMA_REGISTRY_URL`, dedup store/cleanup-interval, dead 변수들.
 
 ## 9. 상태코드/에러코드 매핑

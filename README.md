@@ -34,6 +34,7 @@
 | POST | `/auth/logout` | 로그아웃 → 204 |
 | POST | `/audit` | 입장문 검수(AI) |
 | GET | `/issues` | 이슈 계통도(AI) |
+| GET | `/news?q=` | 뉴스 키워드 검색 (news-crawler `/search` 프록시) |
 | GET | `/news/:node_id` | 노드 뉴스(AI) |
 | GET | `/indexing/jobs/:job_id` | 색인 완료 대기(SSE) |
 | POST | `/strategy/rooms` | 방 생성 + 첫 응답 스트리밍(SSE) |
