@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
 import { InitialSchema1751000000000 } from '../src/database/migrations/1751000000000-InitialSchema';
+import { IndexingJobsFromOutbox1751000001000 } from '../src/database/migrations/1751000001000-IndexingJobsFromOutbox';
 
 /**
  * Test-database bootstrap. Creates and migrates a dedicated `ggee_test` database so the E2E suite
@@ -17,7 +18,7 @@ const APP_TABLES = [
   'users',
   'user_sessions',
   'protects',
-  'protect_target_indexing_outbox',
+  'indexing_jobs',
   'audits',
   'strategy_chat_rooms',
   'strategy_chat_messages',
@@ -65,7 +66,7 @@ export async function runMigrations(): Promise<void> {
     password: cfg.password,
     database: cfg.database,
     entities: [],
-    migrations: [InitialSchema1751000000000],
+    migrations: [InitialSchema1751000000000, IndexingJobsFromOutbox1751000001000],
     synchronize: false,
   });
   await ds.initialize();

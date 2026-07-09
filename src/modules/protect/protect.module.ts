@@ -2,10 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CrawlerController } from '../crawler/crawler.controller';
 import { CrawlerDedupService } from '../crawler/crawler-dedup.service';
-import { IndexingOutboxEntity } from './entities/indexing-outbox.entity';
+import { IndexingJobEntity } from './entities/indexing-job.entity';
 import { ProtectEntity } from './entities/protect.entity';
 import { ProtectService } from './protect.service';
-import { IndexingOutboxRepository } from './repositories/indexing-outbox.repository';
+import { IndexingJobRepository } from './repositories/indexing-job.repository';
 import { ProtectRepository } from './repositories/protect.repository';
 
 /**
@@ -13,14 +13,9 @@ import { ProtectRepository } from './repositories/protect.repository';
  * audit, issue, strategy (getByUserId) and reaction (indexing waiter) can use it.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([ProtectEntity, IndexingOutboxEntity])],
+  imports: [TypeOrmModule.forFeature([ProtectEntity, IndexingJobEntity])],
   controllers: [CrawlerController],
-  providers: [
-    ProtectService,
-    ProtectRepository,
-    IndexingOutboxRepository,
-    CrawlerDedupService,
-  ],
+  providers: [ProtectService, ProtectRepository, IndexingJobRepository, CrawlerDedupService],
   exports: [ProtectService],
 })
 export class ProtectModule {}

@@ -8,7 +8,7 @@ import { ReactionService } from './reaction.service';
 /**
  * Reaction feature: node news lookup (proxied to the reaction AI) + keyword news search
  * (proxied to the news-crawler `/search`) + indexing-completion SSE waiter
- * (polls ProtectService for the outbox job's COMPLETED state).
+ * (polls ProtectService for the indexing job's terminal state).
  */
 @Module({
   imports: [ProtectModule],

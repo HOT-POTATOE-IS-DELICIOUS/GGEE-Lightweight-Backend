@@ -84,6 +84,21 @@ function parseSse(text: string): SseFrame[] {
     });
 }
 
+/**
+ * Poll until `predicate` holds. Register dispatches to the crawler fire-and-forget, so the HTTP
+ * response can beat the dispatch; asserting on the mock's inbox needs a wait, not a bare read.
+ */
+async function waitFor(
+  predicate: () => boolean | Promise<boolean>,
+  timeoutMs = 5_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!(await predicate())) {
+    if (Date.now() > deadline) throw new Error('waitFor: condition never became true');
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 describe('GGEE Lightweight Backend (E2E)', () => {
   let app: INestApplication;
   let server: http.Server;
@@ -210,8 +225,8 @@ describe('GGEE Lightweight Backend (E2E)', () => {
     expect(typeof res.body.refresh_token).toBe('string');
     indexingJobId = res.body.indexing_job_id;
 
+    await waitFor(() => mocks.crawler.requests.some((r) => r.path === '/crawl/request'));
     const crawlReq = mocks.crawler.requests.find((r) => r.path === '/crawl/request');
-    expect(crawlReq).toBeDefined();
     expect(crawlReq!.body).toEqual({
       job_id: indexingJobId,
       keyword: PROTECT_TARGET,
@@ -511,9 +526,9 @@ describe('GGEE Lightweight Backend (E2E)', () => {
 
   // ── indexing completion ──────────────────────────────────────────────────────────
 
-  it('POST /internal/crawl/result (all_done) → outbox COMPLETED; SSE waiter emits completed/done', async () => {
+  it('POST /internal/crawl/result (all_done) → job COMPLETED; SSE waiter emits completed/done', async () => {
     const before = await dataSource.query(
-      'SELECT status FROM protect_target_indexing_outbox WHERE id = $1',
+      'SELECT status FROM indexing_jobs WHERE id = $1',
       [indexingJobId],
     );
     expect(before[0].status).not.toBe('COMPLETED');
@@ -524,7 +539,7 @@ describe('GGEE Lightweight Backend (E2E)', () => {
       .expect(202);
 
     const after = await dataSource.query(
-      'SELECT status FROM protect_target_indexing_outbox WHERE id = $1',
+      'SELECT status FROM indexing_jobs WHERE id = $1',
       [indexingJobId],
     );
     expect(after[0].status).toBe('COMPLETED');
@@ -533,6 +548,37 @@ describe('GGEE Lightweight Backend (E2E)', () => {
     expect(r.status).toBe(200);
     expect(r.text).toContain('event: completed');
     expect(r.text).toContain('data: done');
+  });
+
+  it('crawler unreachable at register → job FAILED; SSE waiter emits failed instead of hanging', async () => {
+    await mocks.crawler.stop();
+
+    const res = await request(server)
+      .post('/auth/register')
+      .send({
+        email: 'crawler-down@example.com',
+        password: PASSWORD,
+        protect_target: '김철수',
+        protect_target_info: 'info',
+      })
+      .expect(201);
+    const failedJobId = res.body.indexing_job_id;
+
+    // The dispatch is fire-and-forget, so the FAILED write lands after the response.
+    let status = '';
+    await waitFor(async () => {
+      const rows = await dataSource.query('SELECT status FROM indexing_jobs WHERE id = $1', [
+        failedJobId,
+      ]);
+      status = rows[0]?.status;
+      return status === 'FAILED';
+    });
+    expect(status).toBe('FAILED');
+
+    const r = await rawRequest('GET', `/indexing/jobs/${failedJobId}`, null, accessToken);
+    expect(r.status).toBe(200);
+    expect(r.text).toContain('event: failed');
+    expect(r.text).toContain('data: dispatch_failed');
   });
 
   // ── failure paths (AI mocks stopped) ─────────────────────────────────────────────

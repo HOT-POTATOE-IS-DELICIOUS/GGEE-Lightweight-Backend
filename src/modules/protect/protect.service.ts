@@ -1,13 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Interval } from '@nestjs/schedule';
 import { EntityManager } from 'typeorm';
 import { AiHttpClient } from '../../common/http/ai-http.client';
 import { BusinessException } from '../../common/error/business.exception';
 import { SnowflakeService } from '../../common/snowflake/snowflake.service';
-import { IndexingOutboxEntity, IndexingOutboxStatus } from './entities/indexing-outbox.entity';
+import { IndexingJobEntity, IndexingJobStatus } from './entities/indexing-job.entity';
 import { ProtectEntity } from './entities/protect.entity';
-import { IndexingOutboxRepository } from './repositories/indexing-outbox.repository';
+import { IndexingJobRepository } from './repositories/indexing-job.repository';
 import { ProtectRepository } from './repositories/protect.repository';
 
 export interface Protect {
@@ -30,18 +30,20 @@ export interface IndexProtectResult {
 
 /**
  * Protect indexing. The original Kafka publish + outbox-dispatch scheduler is replaced by a
- * synchronous HTTP call to the crawler. The outbox row is still written (it carries the
- * indexing_job_id and its COMPLETED state, polled by the indexing waiter).
+ * synchronous HTTP call to the crawler; the job row carries the indexing_job_id and its terminal
+ * state, which the indexing waiter polls. Because nothing retries a failed dispatch, the failure
+ * is recorded (FAILED) rather than left pending for a sweeper that no longer exists.
  */
 @Injectable()
-export class ProtectService {
+export class ProtectService implements OnModuleDestroy {
   private readonly logger = new Logger(ProtectService.name);
   private readonly crawlerBaseUrl: string;
   private readonly crawlerTimeoutMs = 10_000;
+  private readonly inFlightDispatches = new Set<Promise<void>>();
 
   constructor(
     private readonly protects: ProtectRepository,
-    private readonly outbox: IndexingOutboxRepository,
+    private readonly jobs: IndexingJobRepository,
     private readonly snowflake: SnowflakeService,
     private readonly http: AiHttpClient,
     config: ConfigService,
@@ -50,9 +52,9 @@ export class ProtectService {
   }
 
   /**
-   * Create the protect + outbox rows within the caller's transaction (register).
-   * Returns the outbox id as the indexing job id. Does NOT call the crawler (that happens
-   * after the transaction commits, via requestIndexing).
+   * Create the protect + indexing-job rows within the caller's transaction (register).
+   * Returns the job id. Does NOT call the crawler (that happens after the transaction commits,
+   * via requestIndexing).
    */
   async index(command: IndexProtectCommand, manager: EntityManager): Promise<IndexProtectResult> {
     const protect = manager.getRepository(ProtectEntity).create({
@@ -65,24 +67,35 @@ export class ProtectService {
     });
     await this.protects.save(protect, manager);
 
-    const outbox = manager.getRepository(IndexingOutboxEntity).create({
-      id: this.snowflake.generateId(),
-      protectTarget: command.target,
-      protectTargetInfo: command.info,
-      status: IndexingOutboxStatus.PENDING,
-      claimedAt: null,
-      publishedAt: null,
-      deleted: false,
-      deletedAt: null,
-    });
-    await this.outbox.save(outbox, manager);
+    const job = this.newPendingJob(command.target, command.info);
+    await this.jobs.save(job, manager);
 
-    return { protectId: protect.id, indexingJobId: outbox.id };
+    return { protectId: protect.id, indexingJobId: job.id };
   }
 
   /**
-   * Synchronous crawler dispatch (replaces publishing to the `crawl.request` Kafka topic).
-   * Best-effort: failures are logged, not surfaced to the caller (register already committed).
+   * Fire-and-forget dispatch for register: the caller has already committed and cannot act on the
+   * outcome, so making the HTTP response wait on a 10s crawler timeout buys nothing. Failures land
+   * in the job row, which the waiter is already polling.
+   */
+  scheduleIndexing(jobId: string, keyword: string, protectTargetInfo: string): void {
+    const dispatch = this.requestIndexing(jobId, keyword, protectTargetInfo);
+    this.inFlightDispatches.add(dispatch);
+    void dispatch.finally(() => this.inFlightDispatches.delete(dispatch));
+  }
+
+  /**
+   * Let in-flight dispatches finish before the process exits. Without this, a rolling restart drops
+   * them and — since no dispatcher retries PENDING rows anymore — strands those jobs forever.
+   */
+  async onModuleDestroy(): Promise<void> {
+    // requestIndexing never rejects, so this cannot reject either.
+    await Promise.all([...this.inFlightDispatches]);
+  }
+
+  /**
+   * One crawler dispatch (replaces publishing to the `crawl.request` Kafka topic). Never throws:
+   * a failure is recorded as FAILED so the waiter reports it instead of hanging until its ceiling.
    */
   async requestIndexing(jobId: string, keyword: string, protectTargetInfo: string): Promise<void> {
     try {
@@ -91,9 +104,14 @@ export class ProtectService {
         { job_id: jobId, keyword, protect_target_info: protectTargetInfo },
         this.crawlerTimeoutMs,
       );
-      await this.outbox.markPublished(jobId);
     } catch (err) {
       this.logger.warn(`Crawler dispatch failed for job ${jobId}: ${String(err)}`);
+      try {
+        await this.jobs.markFailed(jobId);
+      } catch (markErr) {
+        // register() already committed; never let bookkeeping turn a warning into a 500.
+        this.logger.warn(`Could not mark job ${jobId} FAILED: ${String(markErr)}`);
+      }
     }
   }
 
@@ -108,16 +126,20 @@ export class ProtectService {
 
   /** Mark an indexing job COMPLETED (called by the crawler result callback on status=all_done). */
   async markJobCompleted(jobId: string): Promise<void> {
-    await this.outbox.markCompleted(jobId);
+    await this.jobs.markCompleted(jobId);
   }
 
-  isJobCompleted(jobId: string): Promise<boolean> {
-    return this.outbox.isCompleted(jobId);
+  /** Current job state for the SSE waiter; null for an unknown or malformed job id. */
+  getJobStatus(jobId: string): Promise<IndexingJobStatus | null> {
+    return this.jobs.findStatus(jobId);
   }
 
   /**
    * Port of ProtectTargetRefreshScheduler: every 30 minutes re-enqueue every distinct active
    * protect target and re-request indexing. Assumes a single replica (no distributed lock).
+   *
+   * Dispatches are awaited one at a time here, unlike register's fire-and-forget: this loop can
+   * span every protect target in the table, and firing them all at once would stampede the crawler.
    */
   @Interval('protect-target-refresh', 30 * 60 * 1000)
   async refreshAll(): Promise<void> {
@@ -130,24 +152,20 @@ export class ProtectService {
     }
     for (const snapshot of snapshots) {
       try {
-        const outbox = await this.outbox.save(
-          this.newPendingOutbox(snapshot.target, snapshot.info),
-        );
-        await this.requestIndexing(outbox.id, snapshot.target, snapshot.info);
+        const job = await this.jobs.save(this.newPendingJob(snapshot.target, snapshot.info));
+        await this.requestIndexing(job.id, snapshot.target, snapshot.info);
       } catch (err) {
         this.logger.warn(`Refresh enqueue failed for ${snapshot.target}: ${String(err)}`);
       }
     }
   }
 
-  private newPendingOutbox(target: string, info: string): IndexingOutboxEntity {
-    const entity = new IndexingOutboxEntity();
+  private newPendingJob(target: string, info: string): IndexingJobEntity {
+    const entity = new IndexingJobEntity();
     entity.id = this.snowflake.generateId();
     entity.protectTarget = target;
     entity.protectTargetInfo = info;
-    entity.status = IndexingOutboxStatus.PENDING;
-    entity.claimedAt = null;
-    entity.publishedAt = null;
+    entity.status = IndexingJobStatus.PENDING;
     entity.deleted = false;
     entity.deletedAt = null;
     return entity;
