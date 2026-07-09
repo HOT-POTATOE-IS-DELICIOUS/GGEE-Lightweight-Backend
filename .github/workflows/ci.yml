@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    name: lint / format / typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # `lint` passes --fix; --max-warnings=0 with a clean tree is what actually gates.
+      - run: npx eslint "{src,test}/**/*.ts" --max-warnings=0
+      - run: npm run format:check
+      - run: npm run typecheck
+
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx jest src
+
+  e2e:
+    name: e2e tests
+    runs-on: ubuntu-latest
+    # test/app.e2e-spec.ts pins these in setBaseEnv(); the services below must match it exactly.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ggee
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U root -d ggee"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6380:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:e2e
+
+  build:
+    name: docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # bcrypt is a native addon resolved at require() time, so a green `npm ci` on ubuntu does not
+      # prove the alpine runtime image can load it. Build the image and load bcrypt inside it.
+      - run: docker build -t ggee-ci-check .
+      - name: bcrypt loads under musl
+        run: docker run --rm --entrypoint node ggee-ci-check -e "require('bcrypt').hashSync('x',10)"

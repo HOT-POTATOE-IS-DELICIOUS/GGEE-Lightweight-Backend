@@ -99,8 +99,13 @@ docker compose up -d --no-deps backend
 
 - `npm run start:dev` — 워치 모드
 - `npm run build` / `npm run start:prod`
-- `npm run typecheck` — `tsc --noEmit`
+- `npm run typecheck` — `tsc --noEmit` (src + test)
+- `npm run lint` — eslint `--fix`
+- `npm run format` / `format:check` — prettier
+- `npm test` / `npm run test:e2e` — 유닛 / E2E(postgres·redis 필요)
 - `npm run migration:generate` / `migration:run` / `migration:revert`
+
+CI(`.github/workflows/ci.yml`)가 push·PR마다 lint·format·typecheck·유닛·E2E와 도커 이미지 빌드를 돌린다.
 
 ## 구조
 
