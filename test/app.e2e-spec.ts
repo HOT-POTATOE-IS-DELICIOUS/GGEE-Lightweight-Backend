@@ -579,6 +579,21 @@ describe('GGEE Lightweight Backend (E2E)', () => {
     expect(r.status).toBe(200);
     expect(r.text).toContain('event: failed');
     expect(r.text).toContain('data: dispatch_failed');
+
+    // A late all_done overrides FAILED: our dispatch timed out, but the crawler got the request
+    // anyway and is authoritative about the crawl.
+    await request(server)
+      .post('/internal/crawl/result')
+      .send({ jobId: failedJobId, status: 'all_done' })
+      .expect(202);
+
+    const rows = await dataSource.query('SELECT status FROM indexing_jobs WHERE id = $1', [
+      failedJobId,
+    ]);
+    expect(rows[0].status).toBe('COMPLETED');
+
+    const r2 = await rawRequest('GET', `/indexing/jobs/${failedJobId}`, null, accessToken);
+    expect(r2.text).toContain('event: completed');
   });
 
   // ── failure paths (AI mocks stopped) ─────────────────────────────────────────────

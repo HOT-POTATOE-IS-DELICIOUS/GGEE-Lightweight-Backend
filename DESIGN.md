@@ -61,7 +61,8 @@ src/
 - **이식**: register 트랜잭션(user+protect+indexing job+session) 커밋 후 → 크롤러로 **동기 HTTP POST** `${CRAWLER_BASE_URL}/crawl/request` `{ job_id, keyword, protect_target_info }`. 스케줄러/폴링 디스패치 제거.
 - **outbox 아님**: 디스패처가 사라진 이상 outbox 패턴(claim + 재시도)의 이점은 없다. 남은 것은 `indexing_jobs` 잡 테이블뿐이며 상태는 `PENDING | COMPLETED | FAILED` 3개다. `claimed_at`/`published_at`/`IN_PROGRESS`/`PUBLISHED`와 디스패처용 `(status, createdAt)` 인덱스는 제거됨.
 - **디스패치 실패**: register는 이미 커밋됐으므로 예외를 호출자에게 던질 수 없다. 대신 잡을 `FAILED`로 기록해 4.3의 대기자가 10분 침묵 대신 즉시 실패를 통보하게 한다. 재시도는 없다(사용자 재시도).
-- **완료 콜백**: 크롤러가 `POST /internal/crawl/result`(아래 4.2)로 결과 전송, `status=="all_done"`이면 `job_id`로 COMPLETED 마킹. 종료 상태는 sticky — `PENDING`인 잡만 전이시켜 콜백과 디스패치 타임아웃의 경합에서 승자가 뒤집히지 않는다.
+- **완료 콜백**: 크롤러가 `POST /internal/crawl/result`(아래 4.2)로 결과 전송, `status=="all_done"`이면 `job_id`로 COMPLETED 마킹.
+- **상태 전이 우선순위**: `FAILED`는 `PENDING`에서만, `COMPLETED`는 `PENDING`과 `FAILED`에서 전이된다. 우리 쪽 10초 HTTP 타임아웃은 "요청이 도달했는가"에 대한 추측일 뿐이고 크롤러의 `all_done`은 "크롤이 끝났는가"에 대한 사실이므로, 추측이 사실을 덮지 못하게 한다. 이미 `failed`를 받고 끊긴 대기자는 재조회하면 `completed`를 본다.
 - **30분 리프레시**: `@Interval(30min)` — `SELECT DISTINCT target,info WHERE deleted=false` → 각 건 새 잡(PENDING) 생성 + 크롤러 재요청(best-effort). 단일 레플리카 가정. 새 `job_id`를 발급하므로 기존 대기자를 구제하지는 않는다.
 
 ### 4.2 크롤러 dedup (Kafka Streams → Redis)

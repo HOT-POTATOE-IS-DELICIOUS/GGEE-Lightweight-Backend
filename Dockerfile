@@ -16,5 +16,6 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
 EXPOSE 8080
-# Run pending migrations against the compiled data-source, then start the app.
-CMD ["sh", "-c", "node ./node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js && node dist/main.js"]
+# Run pending migrations against the compiled data-source, then start the app. `exec` so node takes
+# over PID 1 and receives SIGTERM directly; the app drains in-flight crawler dispatches on shutdown.
+CMD ["sh", "-c", "node ./node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js && exec node dist/main.js"]

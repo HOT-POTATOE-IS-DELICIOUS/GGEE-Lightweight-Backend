@@ -37,6 +37,9 @@ services:
       dockerfile: Dockerfile
     container_name: ggee-lw-backend
     restart: unless-stopped
+    # A crawler dispatch can take its full 10s timeout to abort, and the app awaits the in-flight
+    # ones on SIGTERM. Docker's 10s default would SIGKILL mid-drain.
+    stop_grace_period: 30s
     env_file:
       # Injects every var from .env (JWT, CORS, snowflake, AI base URLs, crawler URL, ...).
       # The AI/crawler URLs are used verbatim, so point them at addresses reachable from

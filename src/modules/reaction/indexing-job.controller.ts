@@ -56,19 +56,22 @@ export class IndexingJobController {
     const isTerminal = (status: IndexingJobStatus | null): boolean =>
       status === IndexingJobStatus.COMPLETED || status === IndexingJobStatus.FAILED;
 
-    // Immediate short-circuit if the job already settled.
-    const initial = await this.protectService.getJobStatus(jobId);
-    if (isTerminal(initial)) {
-      finish(initial);
-      return;
-    }
-
-    // Client disconnect: stop all timers, leave the (already closed) response alone.
+    // Client disconnect: stop all timers, leave the (already closed) response alone. Registered
+    // before the first DB read — `close` fires once and is not replayed, so a client that aborts
+    // during that read would otherwise leave the timers below running until the ceiling.
     req.on('close', () => {
       if (finished) return;
       finished = true;
       cleanup();
     });
+
+    // Immediate short-circuit if the job already settled.
+    const initial = await this.protectService.getJobStatus(jobId);
+    if (finished) return; // client vanished while we were reading
+    if (isTerminal(initial)) {
+      finish(initial);
+      return;
+    }
 
     heartbeatTimer = setInterval(() => {
       if (finished) return;
